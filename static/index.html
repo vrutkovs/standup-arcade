@@ -500,9 +500,10 @@
 
 <script>
   /* ── State ── */
-  let team  = [];   // current team list (from settings)
-  let order = [];   // randomised order for current session
-  let idx   = -1;   // current speaker index (-1 = not running)
+  let team      = [];   // current team list (from settings)
+  let remaining = [];   // pool of members yet to speak this session
+  let done      = [];   // members who have already spoken
+  let current   = null; // currently speaking (null = no active session)
 
   const $ = id => document.getElementById(id);
 
@@ -560,7 +561,7 @@
     inp.value = '';
     persist();
     renderMemberList();
-    if (idx < 0) renderIdleTeam();
+    if (current === null) renderIdleTeam();
     updateStartBtn();
   }
 
@@ -568,7 +569,7 @@
     team = team.filter(m => m !== name);
     persist();
     renderMemberList();
-    if (idx < 0) renderIdleTeam();
+    if (current === null) renderIdleTeam();
     updateStartBtn();
   }
 
@@ -588,29 +589,36 @@
   /* ── Standup session ── */
   function startStandup() {
     if (!team.length) return;
-    order = shuffle([...team]);
-    idx   = 0;
+    done      = [];
+    remaining = [...team];
+    current   = pickRandom();
     showSessionButtons(true);
     renderSession();
     setProgressBar();
-    setStatus('Standup started — ' + order.length + ' speaker' + (order.length > 1 ? 's' : ''), false);
+    setStatus('Standup started — ' + team.length + ' speaker' + (team.length > 1 ? 's' : ''), false);
   }
 
   function nextSpeaker() {
-    idx++;
-    if (idx >= order.length) { finishStandup(); return; }
+    done.push(current);
+    if (!remaining.length) { finishStandup(); return; }
+    current = pickRandom();
     renderSession();
     setProgressBar();
-    const remaining = order.length - idx - 1;
-    setStatus(remaining ? remaining + ' speaker' + (remaining > 1 ? 's' : '') + ' remaining' : 'Last speaker!', false);
-    // Update Next btn label on last speaker
-    $('next-btn').textContent = idx === order.length - 1 ? 'Finish ✓' : 'Next →';
+    const left = remaining.length;
+    setStatus(left ? left + ' speaker' + (left > 1 ? 's' : '') + ' remaining' : 'Last speaker!', false);
+    $('next-btn').textContent = remaining.length === 0 ? 'Finish ✓' : 'Next →';
+  }
+
+  function pickRandom() {
+    const i = Math.floor(Math.random() * remaining.length);
+    return remaining.splice(i, 1)[0];
   }
 
   function finishStandup() {
-    const done = order.slice();
+    done.push(current);
+    const all = done.slice();
     endSession();
-    renderFinished(done);
+    renderFinished(all);
     setStatus('Great standup! Everyone spoke.', false);
   }
 
@@ -621,7 +629,7 @@
   }
 
   function endSession() {
-    order = []; idx = -1;
+    remaining = []; done = []; current = null;
     showSessionButtons(false);
     hideProgressBar();
   }
@@ -661,44 +669,40 @@
   function renderSession() {
     const content = $('team-content');
     const badge   = $('team-badge');
-    badge.textContent = (idx + 1) + ' / ' + order.length;
+    badge.textContent = (done.length + 1) + ' / ' + team.length;
     content.innerHTML = '';
 
     // Current speaker
-    const cur = order[idx];
     const block = document.createElement('div');
     block.className = 'speaker-block';
     block.innerHTML =
-      `<div class="speaker-avatar">${initials(cur)}</div>` +
+      `<div class="speaker-avatar">${initials(current)}</div>` +
       `<div class="speaker-meta">` +
         `<div class="speaker-eyebrow">Now Speaking</div>` +
-        `<div class="speaker-name">${esc(cur)}</div>` +
+        `<div class="speaker-name">${esc(current)}</div>` +
       `</div>`;
     content.appendChild(block);
 
-    // Upcoming
-    const upcoming = order.slice(idx + 1);
-    if (upcoming.length) {
+    // Remaining (order unknown — shown without position numbers)
+    if (remaining.length) {
       const section = document.createElement('div');
       section.className = 'queue';
       const lbl = document.createElement('div');
       lbl.className = 'queue-section-label';
-      lbl.textContent = 'Up next';
+      lbl.textContent = 'Remaining';
       section.appendChild(lbl);
-      upcoming.forEach((name, i) => {
+      remaining.forEach(name => {
         const row = document.createElement('div');
         row.className = 'queue-row';
         row.innerHTML =
           `<div class="q-avatar">${initials(name)}</div>` +
-          `<span class="queue-name">${esc(name)}</span>` +
-          `<span class="queue-pos">#${idx + i + 2}</span>`;
+          `<span class="queue-name">${esc(name)}</span>`;
         section.appendChild(row);
       });
       content.appendChild(section);
     }
 
     // Done
-    const done = order.slice(0, idx);
     if (done.length) {
       const section = document.createElement('div');
       section.className = 'queue';
@@ -750,7 +754,7 @@
   /* ── Progress bar ── */
   function setProgressBar() {
     $('progress-bar-wrap').classList.add('visible');
-    $('progress-bar').style.width = ((idx + 1) / order.length * 100) + '%';
+    $('progress-bar').style.width = ((done.length + 1) / team.length * 100) + '%';
   }
   function hideProgressBar() {
     $('progress-bar-wrap').classList.remove('visible');
