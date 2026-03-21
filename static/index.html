@@ -27,30 +27,30 @@
 
     body {
       font-family: var(--font);
-      background: var(--bg);
+      background: #020a03;
       color: var(--green);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       padding: 56px 40px 60px;
-      /* CRT curvature illusion via radial vignette */
-      background-image: radial-gradient(ellipse at center, #0d180e 0%, #06100a 100%);
     }
 
-    /* ── Scanlines ── */
-    body::after {
+
+    /* ── CRT vignette — darken edges like a real tube ── */
+    body::before {
       content: '';
       position: fixed;
       inset: 0;
-      background: repeating-linear-gradient(
-        0deg,
-        rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
-        rgba(0,0,0,0.10) 2px, rgba(0,0,0,0.10) 4px
+      background: radial-gradient(
+        ellipse at 50% 50%,
+        transparent 55%,
+        rgba(0,0,0,0.72) 100%
       );
       pointer-events: none;
-      z-index: 9999;
+      z-index: 9998;
     }
+
 
     /* ── Pixel progress bar ── */
     #progress-bar-wrap {
@@ -117,6 +117,18 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
+      /* CRT screen shape */
+      border-radius: 18px;
+      overflow: hidden;
+      /* phosphor green glow + inner tube shadow */
+      box-shadow:
+        0 0 0 3px #1a2e1a,
+        0 0 28px 4px rgba(74,246,38,0.12),
+        0 0 80px 10px rgba(74,246,38,0.06),
+        inset 0 0 80px rgba(0,0,0,0.55);
+      /* subtle barrel warp via perspective tilt */
+      transform: perspective(900px) rotateX(0.8deg);
+      transform-origin: center top;
     }
 
     .panel {
@@ -230,16 +242,6 @@
     .btn-red:not(:disabled):hover { background: #ff4466; }
 
     /* ── Status line ── */
-    .status-line {
-      font-size: 18px;
-      color: var(--green-dim);
-      min-height: 16px;
-      margin-bottom: 14px;
-      letter-spacing: 1px;
-      line-height: 1.8;
-    }
-    .status-line::before { content: '> '; }
-    .status-line.error { color: var(--red); }
 
     /* ── Action row ── */
     .action-row {
@@ -501,7 +503,7 @@
                onkeydown="if(event.key==='Enter') handleMainBtn()" />
         <button class="btn btn-grey" id="load-btn" onclick="handleMainBtn()" disabled>SCAN</button>
       </div>
-      <div class="status-line" id="status">ADD PLAYERS OR ENTER A MEETING URL</div>
+      <div id="speaker-display" style="display:none"></div>
       <div class="action-row">
         <button class="btn btn-yellow" id="next-btn"  onclick="nextSpeaker()"  style="display:none">NEXT&nbsp;►</button>
         <button class="btn btn-red"    id="end-btn"   onclick="endStandup()"   style="display:none">QUIT</button>
@@ -577,8 +579,7 @@
     if (!val) { setStatus('ENTER A MEETING URL FIRST', false); return; }
 
     const btn = $('load-btn');
-    btn.disabled = true; btn.textContent = '...';
-    setStatus('SCANNING...', false);
+    btn.disabled = true; btn.textContent = 'SCANNING...';
 
     try {
       const res  = await fetch('/api/attendees?meeting=' + encodeURIComponent(val));
@@ -657,7 +658,6 @@
     showSessionButtons(true);
     renderSession();
     setProgressBar();
-    setStatus(`GAME START — ${team.length} PLAYER${team.length > 1 ? 'S' : ''}`, false);
   }
 
   function nextSpeaker() {
@@ -666,8 +666,6 @@
     current = pickRandom();
     renderSession();
     setProgressBar();
-    const left = remaining.length;
-    setStatus(left ? `${left} PLAYER${left > 1 ? 'S' : ''} REMAINING` : 'LAST PLAYER!', false);
     $('next-btn').textContent = remaining.length === 0 ? 'FINISH' : 'NEXT ►';
   }
 
@@ -684,7 +682,7 @@
     updateHiScore();
     endSession();
     renderFinished(all);
-    setStatus('STAGE CLEAR! ALL PLAYERS SPOKE.', false);
+    updateLoadBtn();
   }
 
   function endStandup() {
@@ -697,6 +695,9 @@
     remaining = []; done = []; current = null;
     showSessionButtons(false);
     hideProgressBar();
+    const sp = $('speaker-display');
+    sp.style.display = 'none';
+    sp.innerHTML = '';
   }
 
   /* ── Rendering ── */
@@ -734,22 +735,22 @@
     badge.textContent = `${done.length + 1}/${team.length}`;
     content.innerHTML = '';
 
-    // Current speaker
-    const block = document.createElement('div');
-    block.className = 'speaker-block';
-    block.innerHTML =
-      `<div class="speaker-eyebrow">▶ NOW SPEAKING</div>` +
-      `<div class="speaker-row">` +
-        `<div class="speaker-sprite marching">${initials(current)}</div>` +
-        `<div class="speaker-name">${esc(current)}</div>` +
+    // Current speaker — rendered above the buttons in mission control
+    const speaker = $('speaker-display');
+    speaker.style.display = '';
+    speaker.innerHTML =
+      `<div class="speaker-block">` +
+        `<div class="speaker-eyebrow">▶ NOW SPEAKING</div>` +
+        `<div class="speaker-row">` +
+          `<div class="speaker-sprite marching">${initials(current)}</div>` +
+          `<div class="speaker-name">${esc(current)}</div>` +
+        `</div>` +
       `</div>`;
-    content.appendChild(block);
 
-    // Remaining queue
+    // Remaining queue (no header label)
     if (remaining.length) {
       const sec = document.createElement('div');
       sec.className = 'q-section';
-      sec.innerHTML = `<div class="q-label">QUEUE</div>`;
       remaining.forEach(name => {
         const row = document.createElement('div');
         row.className = 'q-row';
@@ -841,11 +842,7 @@
     }
   }
 
-  function setStatus(msg, isError) {
-    const el = $('status');
-    el.textContent = msg.toUpperCase();
-    el.className = 'status-line' + (isError ? ' error' : '');
-  }
+  function setStatus(msg, isError) { /* status line removed */ }
 
   function toggleSettings() {
     $('settings-body').classList.toggle('open');
