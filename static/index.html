@@ -441,6 +441,13 @@
       transition: background 0.1s, color 0.1s;
     }
     .remove-btn:hover { background: var(--red-dark); color: var(--red); }
+    #error-msg {
+      font-size: 18px;
+      color: var(--red);
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+    #error-msg::before { content: '! '; }
 
     .add-row { display: flex; flex-direction: column; gap: 6px; }
     .add-row .btn { width: 100%; }
@@ -503,6 +510,7 @@
                onkeydown="if(event.key==='Enter') handleMainBtn()" />
         <button class="btn btn-grey" id="load-btn" onclick="handleMainBtn()" disabled>SCAN</button>
       </div>
+      <div id="error-msg" style="display:none"></div>
       <div id="speaker-display" style="display:none"></div>
       <div class="action-row">
         <button class="btn btn-yellow" id="next-btn"  onclick="nextSpeaker()"  style="display:none">NEXT&nbsp;►</button>
@@ -629,6 +637,7 @@
     const val = $('meeting-input').value.trim();
     if (!val) { return; }
 
+    clearStatus();
     const btn = $('load-btn');
     btn.disabled = true; btn.textContent = 'SCANNING...';
 
@@ -636,6 +645,7 @@
       const res  = await fetch('/api/attendees?meeting=' + encodeURIComponent(val));
       const data = await res.json();
       if (data.error) {
+        setStatus(data.error);
       } else {
         team = (data.attendees || []);
         endSession();
@@ -648,6 +658,7 @@
         }
       }
     } catch(e) {
+      setStatus(e.message);
       updateLoadBtn();
     }
   }
@@ -869,6 +880,20 @@
     }
   }
 
+
+  /* ── Error display ── */
+  let _errTimer = null;
+  function setStatus(msg) {
+    const el = $('error-msg');
+    el.textContent = msg.toUpperCase();
+    el.style.display = '';
+    if (_errTimer) clearTimeout(_errTimer);
+    _errTimer = setTimeout(() => { el.style.display = 'none'; _errTimer = null; }, 4000);
+  }
+  function clearStatus() {
+    if (_errTimer) { clearTimeout(_errTimer); _errTimer = null; }
+    $('error-msg').style.display = 'none';
+  }
 
   function toggleSettings() {
     $('settings-body').classList.toggle('open');
