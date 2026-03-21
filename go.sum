@@ -1,0 +1,4 @@
+github.com/golang/oauth2 v0.24.0 h1:2roOXtkLCga7vlz773xWFY4MmM/XjlVGNc8R8n95Km0=
+github.com/golang/oauth2 v0.24.0/go.mod h1:XYTD2NtWslqkgxebSiOHnXEap4TF09sJSc7H1sXbhtI=
+github.com/googleapis/google-cloud-go/compute/metadata v0.3.0 h1:OjkFzJ1W74sDiBHK01Lz55vUmvaQH55Fv2kVs0BR9/0=
+github.com/googleapis/google-cloud-go/compute/metadata v0.3.0/go.mod h1:zFmK7XCadkQkj6TtorcaGlCW1hT1fIilQDwofLpJ20k=
