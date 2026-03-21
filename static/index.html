@@ -548,6 +548,57 @@
 
 </div><!-- card-stack -->
 
+<!-- ── DOM Templates ── -->
+<template id="tpl-member-row">
+  <div class="member-row">
+    <span class="member-row-name"></span>
+    <button type="button" class="remove-btn">DEL</button>
+  </div>
+</template>
+
+<template id="tpl-preview-row">
+  <div class="preview-row">
+    <span class="preview-rank"></span>
+  </div>
+</template>
+
+<template id="tpl-empty">
+  <div class="empty-state">
+    <div class="blink">-- NO PLAYERS FOUND --</div>
+    <span class="empty-sub">INSERT COIN TO CONTINUE</span>
+  </div>
+</template>
+
+<template id="tpl-speaker">
+  <div class="speaker-block">
+    <div class="speaker-eyebrow">▶ NOW SPEAKING</div>
+    <div class="speaker-row">
+      <div class="speaker-sprite marching"></div>
+      <div class="speaker-name"></div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-finish">
+  <div class="finish-block">
+    <div class="finish-stars blink">★ ★ ★</div>
+    <div class="finish-title">STAGE CLEAR!</div>
+    <div class="finish-sub"></div>
+  </div>
+</template>
+
+<template id="tpl-q-row">
+  <div class="q-row"></div>
+</template>
+
+<template id="tpl-q-section">
+  <div class="q-section"></div>
+</template>
+
+<template id="tpl-q-label">
+  <div class="q-label"></div>
+</template>
+
 <script>
   /* ── State ── */
   let team      = [];
@@ -576,7 +627,7 @@
   /* ── Meet API ── */
   async function loadAttendees() {
     const val = $('meeting-input').value.trim();
-    if (!val) { setStatus('ENTER A MEETING URL FIRST', false); return; }
+    if (!val) { return; }
 
     const btn = $('load-btn');
     btn.disabled = true; btn.textContent = 'SCANNING...';
@@ -585,7 +636,6 @@
       const res  = await fetch('/api/attendees?meeting=' + encodeURIComponent(val));
       const data = await res.json();
       if (data.error) {
-        setStatus('ERROR: ' + data.error.toUpperCase(), true);
       } else {
         team = (data.attendees || []);
         endSession();
@@ -594,12 +644,10 @@
         if (team.length) {
           startStandup();
         } else {
-          setStatus('NO PLAYERS FOUND IN THIS MEETING', true);
           updateLoadBtn();
         }
       }
     } catch(e) {
-      setStatus('CONNECTION FAILED: ' + e.message.toUpperCase(), true);
       updateLoadBtn();
     }
   }
@@ -624,30 +672,6 @@
     updateLoadBtn();
   }
 
-  function renderMemberList() {
-    const list = $('member-list');
-    list.innerHTML = '';
-    team.forEach(function(name, idx) {
-      var row = document.createElement('div');
-      row.className = 'member-row';
-
-      var label = document.createElement('span');
-      label.className = 'member-row-name';
-      label.textContent = name;
-
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'remove-btn';
-      btn.textContent = 'DEL';
-      btn.onclick = (function(i) {
-        return function(e) { e.stopPropagation(); removeMember(i); };
-      })(idx);
-
-      row.appendChild(label);
-      row.appendChild(btn);
-      list.appendChild(row);
-    });
-  }
 
   /* ── Standup session ── */
   function startStandup() {
@@ -688,7 +712,6 @@
   function endStandup() {
     endSession();
     renderIdleTeam();
-    setStatus('GAME OVER.', false);
   }
 
   function endSession() {
@@ -697,108 +720,112 @@
     hideProgressBar();
     const sp = $('speaker-display');
     sp.style.display = 'none';
-    sp.innerHTML = '';
+    sp.replaceChildren();
+  }
+
+  /* ── Template helper ── */
+  function cloneTpl(id) {
+    return document.getElementById('tpl-' + id).content.cloneNode(true).firstElementChild;
   }
 
   /* ── Rendering ── */
+  function renderMemberList() {
+    const nodes = team.map(function(name, idx) {
+      const row = cloneTpl('member-row');
+      row.querySelector('.member-row-name').textContent = name;
+      row.querySelector('.remove-btn').onclick = (function(i) {
+        return function(e) { e.stopPropagation(); removeMember(i); };
+      })(idx);
+      return row;
+    });
+    $('member-list').replaceChildren(...nodes);
+  }
+
   function renderIdleTeam() {
     const content = $('team-content');
     const badge   = $('team-badge');
 
     if (!team.length) {
       badge.textContent = '';
-      content.innerHTML =
-        '<div class="empty-state">' +
-          '<div class="blink">-- NO PLAYERS FOUND --</div>' +
-          '<span class="empty-sub">INSERT COIN TO CONTINUE</span>' +
-        '</div>';
+      content.replaceChildren(cloneTpl('empty'));
       return;
     }
 
     badge.textContent = team.length + 'P';
-
-    const preview = shuffle([...team]);
-    content.innerHTML = '';
-    preview.forEach((name, i) => {
-      const row = document.createElement('div');
-      row.className = 'preview-row';
+    const nodes = shuffle([...team]).map((name, i) => {
+      const row  = cloneTpl('preview-row');
       row.style.animationDelay = (i * 30) + 'ms';
-      row.innerHTML =
-        `${esc(name)}<span class="preview-rank">#${i + 1}</span>`;
-      content.appendChild(row);
+      const rank = row.querySelector('.preview-rank');
+      rank.textContent = '#' + (i + 1);
+      row.insertBefore(document.createTextNode(name), rank);
+      return row;
     });
+    content.replaceChildren(...nodes);
   }
 
   function renderSession() {
-    const content = $('team-content');
-    const badge   = $('team-badge');
-    badge.textContent = `${done.length + 1}/${team.length}`;
-    content.innerHTML = '';
+    const badge = $('team-badge');
+    badge.textContent = (done.length + 1) + '/' + team.length;
 
-    // Current speaker — rendered above the buttons in mission control
+    // Current speaker — above buttons in mission control
+    const block = cloneTpl('speaker');
+    block.querySelector('.speaker-sprite').textContent = initials(current);
+    block.querySelector('.speaker-name').textContent   = current;
     const speaker = $('speaker-display');
     speaker.style.display = '';
-    speaker.innerHTML =
-      `<div class="speaker-block">` +
-        `<div class="speaker-eyebrow">▶ NOW SPEAKING</div>` +
-        `<div class="speaker-row">` +
-          `<div class="speaker-sprite marching">${initials(current)}</div>` +
-          `<div class="speaker-name">${esc(current)}</div>` +
-        `</div>` +
-      `</div>`;
+    speaker.replaceChildren(block);
 
-    // Remaining queue (no header label)
+    const sections = [];
+
+    // Remaining queue (no label)
     if (remaining.length) {
-      const sec = document.createElement('div');
-      sec.className = 'q-section';
+      const sec = cloneTpl('q-section');
       remaining.forEach(name => {
-        const row = document.createElement('div');
-        row.className = 'q-row';
-        row.textContent = esc(name);
+        const row = cloneTpl('q-row');
+        row.textContent = name;
         sec.appendChild(row);
       });
-      content.appendChild(sec);
+      sections.push(sec);
     }
 
     // Done list
     if (done.length) {
-      const sec = document.createElement('div');
-      sec.className = 'q-section';
-      sec.innerHTML = `<div class="q-label">CLEARED</div>`;
+      const sec = cloneTpl('q-section');
+      const lbl = cloneTpl('q-label');
+      lbl.textContent = 'CLEARED';
+      sec.appendChild(lbl);
       done.forEach(name => {
-        const row = document.createElement('div');
-        row.className = 'q-row cleared';
-        row.textContent = esc(name);
+        const row = cloneTpl('q-row');
+        row.textContent = name;
+        row.classList.add('cleared');
         sec.appendChild(row);
       });
-      content.appendChild(sec);
+      sections.push(sec);
     }
+
+    $('team-content').replaceChildren(...sections);
   }
 
   function renderFinished(all) {
-    const content = $('team-content');
-    const badge   = $('team-badge');
-    badge.textContent = `${all.length}P`;
-    content.innerHTML = '';
+    $('team-badge').textContent = all.length + 'P';
 
-    const block = document.createElement('div');
-    block.className = 'finish-block';
-    block.innerHTML =
-      `<div class="finish-stars blink">★ ★ ★</div>` +
-      `<div class="finish-title">STAGE CLEAR!</div>` +
-      `<div class="finish-sub">${all.length} PLAYER${all.length > 1 ? 'S' : ''} SPOKE &nbsp;·&nbsp; +${all.length * 100} PTS</div>`;
-    content.appendChild(block);
+    const block = cloneTpl('finish');
+    block.querySelector('.finish-sub').textContent =
+      all.length + ' PLAYER' + (all.length > 1 ? 'S' : '') +
+      ' SPOKE  ·  +' + (all.length * 100) + ' PTS';
 
-    const sec = document.createElement('div');
-    sec.className = 'q-section';
-    sec.innerHTML = '<div class="q-label">ROLL CALL</div>';
+    const sec = cloneTpl('q-section');
+    const lbl = cloneTpl('q-label');
+    lbl.textContent = 'ROLL CALL';
+    sec.appendChild(lbl);
     all.forEach(name => {
-      const row = document.createElement('div');
-      row.className = 'q-row cleared';
-      row.textContent = esc(name);
+      const row = cloneTpl('q-row');
+      row.textContent = name;
+      row.classList.add('cleared');
       sec.appendChild(row);
     });
-    content.appendChild(sec);
+
+    $('team-content').replaceChildren(block, sec);
   }
 
   /* ── Progress bar ── */
@@ -842,7 +869,6 @@
     }
   }
 
-  function setStatus(msg, isError) { /* status line removed */ }
 
   function toggleSettings() {
     $('settings-body').classList.toggle('open');
@@ -862,9 +888,6 @@
     return name.split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0, 2) || '?';
   }
 
-  function esc(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
 
   /* ── Boot ── */
   restore();
