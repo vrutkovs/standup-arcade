@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Standup</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+        "Helvetica Neue", Arial, sans-serif;
+      background: #f2f2f7;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 20px 60px;
+      -webkit-font-smoothing: antialiased;
+      color: #1d1d1f;
+    }
+
+    /* ── Progress bar ── */
+    #progress-bar-wrap {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: rgba(0,0,0,0.07);
+      z-index: 200;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #progress-bar-wrap.visible { opacity: 1; }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #007AFF 0%, #5AC8FA 100%);
+      border-radius: 0 2px 2px 0;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ── Header ── */
+    .app-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .app-header h1 {
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: -0.6px;
+      color: #1d1d1f;
+    }
+    .app-header p {
+      font-size: 15px;
+      color: #86868b;
+      margin-top: 3px;
+    }
+
+    /* ── Card stack ── */
+    .card-stack {
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 2px 12px rgba(0,0,0,0.06);
+      overflow: hidden;
+    }
+
+    /* ── Controls card ── */
+    .controls-card { padding: 20px 24px 24px; }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .text-input {
+      flex: 1;
+      height: 38px;
+      padding: 0 13px;
+      border: 1.5px solid #e5e5ea;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #1d1d1f;
+      outline: none;
+      transition: border-color 0.18s;
+      background: #fff;
+    }
+    .text-input:focus { border-color: #007AFF; }
+    .text-input::placeholder { color: #aeaeb2; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 38px;
+      padding: 0 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: filter 0.15s, transform 0.1s, background 0.15s;
+      white-space: nowrap;
+      outline: none;
+    }
+    .btn:active { transform: scale(0.96); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .btn-blue   { background: #007AFF; color: #fff; }
+    .btn-blue:not(:disabled):hover { filter: brightness(0.9); }
+
+    .btn-gray   { background: #f2f2f7; color: #1d1d1f; }
+    .btn-gray:not(:disabled):hover { background: #e5e5ea; }
+
+    .btn-green  { background: #34C759; color: #fff; }
+    .btn-green:not(:disabled):hover { filter: brightness(0.9); }
+
+    .btn-red    { background: #FF3B30; color: #fff; }
+    .btn-red:not(:disabled):hover { filter: brightness(0.9); }
+
+    .status-line {
+      font-size: 13px;
+      color: #86868b;
+      margin-bottom: 14px;
+      min-height: 18px;
+      transition: color 0.2s;
+    }
+    .status-line.error { color: #FF3B30; }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+    }
+    .action-row .btn { flex: 1; }
+
+    /* ── Team card ── */
+    .team-card { padding: 20px 24px 24px; }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .card-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #86868b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge {
+      font-size: 13px;
+      color: #aeaeb2;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px 0;
+      color: #aeaeb2;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    .empty-state small {
+      display: block;
+      font-size: 13px;
+      margin-top: 4px;
+      color: #c7c7cc;
+    }
+
+    /* Current speaker block */
+    .speaker-block {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, #f0f8ff 0%, #e8f4fd 100%);
+      border: 1.5px solid #c7e2f8;
+      border-radius: 13px;
+      margin-bottom: 14px;
+      animation: slide-in 0.22s ease;
+    }
+    .speaker-avatar {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #007AFF 0%, #5AC8FA 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,122,255,0.3);
+    }
+    .speaker-meta { flex: 1; }
+    .speaker-eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      color: #007AFF;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 2px;
+    }
+    .speaker-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1d1d1f;
+      letter-spacing: -0.4px;
+    }
+
+    /* Queue rows */
+    .queue {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .queue-section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #c7c7cc;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 10px 10px 6px;
+    }
+
+    .queue-row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 9px 10px;
+      border-radius: 10px;
+      transition: background 0.12s;
+    }
+    .queue-row:hover { background: #fafafa; }
+    .queue-row.done {
+      opacity: 0.38;
+    }
+    .queue-row.done .queue-name { text-decoration: line-through; }
+
+    .q-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #e5e5ea;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #86868b;
+      flex-shrink: 0;
+    }
+    .queue-name {
+      flex: 1;
+      font-size: 15px;
+      color: #3c3c43;
+    }
+    .queue-pos {
+      font-size: 13px;
+      color: #c7c7cc;
+    }
+
+    /* Shuffled preview rows */
+    .preview-row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 9px 10px;
+      border-radius: 10px;
+      color: #3c3c43;
+      font-size: 15px;
+      animation: slide-in 0.2s ease both;
+    }
+    .preview-row:nth-child(1) { animation-delay: 0ms; }
+    .preview-row:nth-child(2) { animation-delay: 30ms; }
+    .preview-row:nth-child(3) { animation-delay: 60ms; }
+    .preview-row:nth-child(4) { animation-delay: 90ms; }
+    .preview-row:nth-child(5) { animation-delay: 120ms; }
+
+    /* ── Settings card ── */
+    .settings-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 17px 24px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s;
+    }
+    .settings-toggle:hover { background: #fafafa; }
+
+    .settings-toggle-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .settings-icon-wrap {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: #f2f2f7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .settings-toggle-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1d1d1f;
+    }
+    .chevron {
+      color: #c7c7cc;
+      font-size: 12px;
+      transition: transform 0.2s;
+    }
+    .chevron.open { transform: rotate(180deg); }
+
+    .settings-divider {
+      height: 1px;
+      background: #f2f2f7;
+      margin: 0 24px;
+    }
+
+    .settings-body {
+      padding: 16px 24px 24px;
+      display: none;
+      animation: slide-in 0.18s ease;
+    }
+    .settings-body.open { display: block; }
+
+    .settings-section-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #86868b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .member-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 12px;
+    }
+    .member-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: #fafafa;
+      border-radius: 9px;
+      animation: slide-in 0.18s ease;
+    }
+    .member-row-name {
+      flex: 1;
+      font-size: 14px;
+      color: #1d1d1f;
+    }
+    .remove-btn {
+      width: 22px;
+      height: 22px;
+      border: none;
+      background: none;
+      color: #aeaeb2;
+      font-size: 17px;
+      line-height: 1;
+      cursor: pointer;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      padding: 0;
+    }
+    .remove-btn:hover { background: #ffe5e3; color: #FF3B30; }
+
+    .add-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* ── Animations ── */
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse-ring {
+      0%   { box-shadow: 0 2px 8px rgba(0,122,255,0.30), 0 0 0 0px rgba(0,122,255,0.20); }
+      50%  { box-shadow: 0 2px 8px rgba(0,122,255,0.30), 0 0 0 6px rgba(0,122,255,0.00); }
+      100% { box-shadow: 0 2px 8px rgba(0,122,255,0.30), 0 0 0 0px rgba(0,122,255,0.00); }
+    }
+    .speaker-avatar { animation: pulse-ring 2.2s ease-out infinite; }
+
+    /* ── Finish overlay ── */
+    .finish-msg {
+      text-align: center;
+      padding: 28px 0 8px;
+      animation: slide-in 0.3s ease;
+    }
+    .finish-msg .finish-icon {
+      font-size: 40px;
+      margin-bottom: 10px;
+    }
+    .finish-msg .finish-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1d1d1f;
+      margin-bottom: 4px;
+    }
+    .finish-msg .finish-sub {
+      font-size: 14px;
+      color: #86868b;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Progress bar -->
+<div id="progress-bar-wrap">
+  <div id="progress-bar"></div>
+</div>
+
+<!-- Header -->
+<header class="app-header">
+  <h1>Standup</h1>
+  <p>Daily standup randomizer</p>
+</header>
+
+<div class="card-stack">
+
+  <!-- ── Controls card ── -->
+  <div class="card controls-card">
+    <div class="input-row">
+      <input id="meeting-input" class="text-input"
+             placeholder="meet.google.com/abc-def-ghi"
+             onkeydown="if(event.key==='Enter') loadAttendees()" />
+      <button class="btn btn-gray" id="load-btn" onclick="loadAttendees()">Load</button>
+    </div>
+    <div class="status-line" id="status"></div>
+    <div class="action-row">
+      <button class="btn btn-blue"  id="start-btn" onclick="startStandup()" disabled>Start Standup</button>
+      <button class="btn btn-green" id="next-btn"  onclick="nextSpeaker()"  style="display:none">Next →</button>
+      <button class="btn btn-red"   id="end-btn"   onclick="endStandup()"   style="display:none">End</button>
+    </div>
+  </div>
+
+  <!-- ── Team card ── -->
+  <div class="card team-card">
+    <div class="card-header">
+      <span class="card-label">Team</span>
+      <span class="badge" id="team-badge"></span>
+    </div>
+    <div id="team-content">
+      <div class="empty-state">
+        No team members yet
+        <small>Add members in Settings or load from a meeting</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Settings card ── -->
+  <div class="card">
+    <div class="settings-toggle" onclick="toggleSettings()">
+      <div class="settings-toggle-left">
+        <div class="settings-icon-wrap">⚙️</div>
+        <span class="settings-toggle-title">Settings</span>
+      </div>
+      <span class="chevron" id="chevron">▼</span>
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-body" id="settings-body">
+      <div class="settings-section-label">Team Members</div>
+      <div class="member-list" id="member-list"></div>
+      <div class="add-row">
+        <input id="add-input" class="text-input"
+               placeholder="Add member name…"
+               onkeydown="if(event.key==='Enter') addMember()" />
+        <button class="btn btn-blue" onclick="addMember()">Add</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- card-stack -->
+
+<script>
+  /* ── State ── */
+  let team  = [];   // current team list (from settings)
+  let order = [];   // randomised order for current session
+  let idx   = -1;   // current speaker index (-1 = not running)
+
+  const $ = id => document.getElementById(id);
+
+  /* ── Persistence ── */
+  function persist()  { localStorage.setItem('standup-team', JSON.stringify(team)); }
+  function restore() {
+    try { team = JSON.parse(localStorage.getItem('standup-team') || '[]'); } catch(_) {}
+    renderMemberList();
+    renderIdleTeam();
+    updateStartBtn();
+  }
+
+  /* ── Meet API ── */
+  async function loadAttendees() {
+    const val = $('meeting-input').value.trim();
+    if (!val) { setStatus('Enter a meeting URL', false); return; }
+
+    const btn = $('load-btn');
+    btn.disabled = true; btn.textContent = '…';
+    setStatus('Loading…', false);
+
+    try {
+      const res  = await fetch('/api/attendees?meeting=' + encodeURIComponent(val));
+      const data = await res.json();
+      if (data.error) {
+        setStatus(data.error, true);
+      } else {
+        const existing = new Set(team.map(n => n.toLowerCase()));
+        const fresh = (data.attendees || []).filter(n => !existing.has(n.toLowerCase()));
+        team = [...team, ...fresh];
+        persist();
+        renderMemberList();
+        renderIdleTeam();
+        updateStartBtn();
+        setStatus(
+          fresh.length
+            ? `Loaded ${fresh.length} new member${fresh.length > 1 ? 's' : ''} (${team.length} total)`
+            : `No new members found (${team.length} already in team)`,
+          false
+        );
+      }
+    } catch(e) {
+      setStatus('Request failed: ' + e.message, true);
+    }
+
+    btn.disabled = false; btn.textContent = 'Load';
+  }
+
+  /* ── Team management ── */
+  function addMember() {
+    const inp = $('add-input');
+    const name = inp.value.trim();
+    if (!name || team.includes(name)) { inp.value = ''; return; }
+    team.push(name);
+    inp.value = '';
+    persist();
+    renderMemberList();
+    if (idx < 0) renderIdleTeam();
+    updateStartBtn();
+  }
+
+  function removeMember(name) {
+    team = team.filter(m => m !== name);
+    persist();
+    renderMemberList();
+    if (idx < 0) renderIdleTeam();
+    updateStartBtn();
+  }
+
+  function renderMemberList() {
+    const list = $('member-list');
+    list.innerHTML = '';
+    team.forEach(name => {
+      const row = document.createElement('div');
+      row.className = 'member-row';
+      row.innerHTML =
+        `<span class="member-row-name">${esc(name)}</span>` +
+        `<button class="remove-btn" onclick="removeMember(${JSON.stringify(name)})" title="Remove">×</button>`;
+      list.appendChild(row);
+    });
+  }
+
+  /* ── Standup session ── */
+  function startStandup() {
+    if (!team.length) return;
+    order = shuffle([...team]);
+    idx   = 0;
+    showSessionButtons(true);
+    renderSession();
+    setProgressBar();
+    setStatus('Standup started — ' + order.length + ' speaker' + (order.length > 1 ? 's' : ''), false);
+  }
+
+  function nextSpeaker() {
+    idx++;
+    if (idx >= order.length) { finishStandup(); return; }
+    renderSession();
+    setProgressBar();
+    const remaining = order.length - idx - 1;
+    setStatus(remaining ? remaining + ' speaker' + (remaining > 1 ? 's' : '') + ' remaining' : 'Last speaker!', false);
+    // Update Next btn label on last speaker
+    $('next-btn').textContent = idx === order.length - 1 ? 'Finish ✓' : 'Next →';
+  }
+
+  function finishStandup() {
+    const done = order.slice();
+    endSession();
+    renderFinished(done);
+    setStatus('Great standup! Everyone spoke.', false);
+  }
+
+  function endStandup() {
+    endSession();
+    renderIdleTeam();
+    setStatus('Standup ended.', false);
+  }
+
+  function endSession() {
+    order = []; idx = -1;
+    showSessionButtons(false);
+    hideProgressBar();
+  }
+
+  /* ── Rendering ── */
+  function renderIdleTeam() {
+    const content = $('team-content');
+    const badge   = $('team-badge');
+
+    if (!team.length) {
+      badge.textContent = '';
+      content.innerHTML =
+        '<div class="empty-state">No team members yet<small>Add members in Settings or load from a meeting</small></div>';
+      return;
+    }
+
+    badge.textContent = team.length + ' member' + (team.length > 1 ? 's' : '');
+
+    // Show a shuffled preview
+    const preview = shuffle([...team]);
+    content.innerHTML = '';
+    const queue = document.createElement('div');
+    queue.className = 'queue';
+    preview.forEach((name, i) => {
+      const row = document.createElement('div');
+      row.className = 'preview-row';
+      row.style.animationDelay = (i * 25) + 'ms';
+      row.innerHTML =
+        `<div class="q-avatar">${initials(name)}</div>` +
+        `<span class="queue-name">${esc(name)}</span>` +
+        `<span class="queue-pos">#${i + 1}</span>`;
+      queue.appendChild(row);
+    });
+    content.appendChild(queue);
+  }
+
+  function renderSession() {
+    const content = $('team-content');
+    const badge   = $('team-badge');
+    badge.textContent = (idx + 1) + ' / ' + order.length;
+    content.innerHTML = '';
+
+    // Current speaker
+    const cur = order[idx];
+    const block = document.createElement('div');
+    block.className = 'speaker-block';
+    block.innerHTML =
+      `<div class="speaker-avatar">${initials(cur)}</div>` +
+      `<div class="speaker-meta">` +
+        `<div class="speaker-eyebrow">Now Speaking</div>` +
+        `<div class="speaker-name">${esc(cur)}</div>` +
+      `</div>`;
+    content.appendChild(block);
+
+    // Upcoming
+    const upcoming = order.slice(idx + 1);
+    if (upcoming.length) {
+      const section = document.createElement('div');
+      section.className = 'queue';
+      const lbl = document.createElement('div');
+      lbl.className = 'queue-section-label';
+      lbl.textContent = 'Up next';
+      section.appendChild(lbl);
+      upcoming.forEach((name, i) => {
+        const row = document.createElement('div');
+        row.className = 'queue-row';
+        row.innerHTML =
+          `<div class="q-avatar">${initials(name)}</div>` +
+          `<span class="queue-name">${esc(name)}</span>` +
+          `<span class="queue-pos">#${idx + i + 2}</span>`;
+        section.appendChild(row);
+      });
+      content.appendChild(section);
+    }
+
+    // Done
+    const done = order.slice(0, idx);
+    if (done.length) {
+      const section = document.createElement('div');
+      section.className = 'queue';
+      const lbl = document.createElement('div');
+      lbl.className = 'queue-section-label';
+      lbl.textContent = 'Done';
+      section.appendChild(lbl);
+      done.forEach(name => {
+        const row = document.createElement('div');
+        row.className = 'queue-row done';
+        row.innerHTML =
+          `<div class="q-avatar">${initials(name)}</div>` +
+          `<span class="queue-name">${esc(name)}</span>`;
+        section.appendChild(row);
+      });
+      content.appendChild(section);
+    }
+  }
+
+  function renderFinished(done) {
+    const content = $('team-content');
+    const badge   = $('team-badge');
+    badge.textContent = done.length + ' spoke';
+    content.innerHTML = '';
+
+    const msg = document.createElement('div');
+    msg.className = 'finish-msg';
+    msg.innerHTML =
+      `<div class="finish-icon">🎉</div>` +
+      `<div class="finish-title">Standup complete!</div>` +
+      `<div class="finish-sub">${done.length} member${done.length > 1 ? 's' : ''} spoke today</div>`;
+    content.appendChild(msg);
+
+    const queue = document.createElement('div');
+    queue.className = 'queue';
+    queue.style.marginTop = '18px';
+    done.forEach((name, i) => {
+      const row = document.createElement('div');
+      row.className = 'queue-row done';
+      row.style.animationDelay = (i * 20) + 'ms';
+      row.innerHTML =
+        `<div class="q-avatar">${initials(name)}</div>` +
+        `<span class="queue-name">${esc(name)}</span>`;
+      queue.appendChild(row);
+    });
+    content.appendChild(queue);
+  }
+
+  /* ── Progress bar ── */
+  function setProgressBar() {
+    $('progress-bar-wrap').classList.add('visible');
+    $('progress-bar').style.width = ((idx + 1) / order.length * 100) + '%';
+  }
+  function hideProgressBar() {
+    $('progress-bar-wrap').classList.remove('visible');
+    $('progress-bar').style.width = '0%';
+  }
+
+  /* ── UI helpers ── */
+  function showSessionButtons(active) {
+    $('start-btn').style.display = active ? 'none' : '';
+    $('next-btn').style.display  = active ? '' : 'none';
+    $('end-btn').style.display   = active ? '' : 'none';
+    $('next-btn').textContent = 'Next →';
+  }
+
+  function updateStartBtn() {
+    $('start-btn').disabled = team.length === 0;
+  }
+
+  function setStatus(msg, isError) {
+    const el = $('status');
+    el.textContent = msg;
+    el.className = 'status-line' + (isError ? ' error' : '');
+  }
+
+  function toggleSettings() {
+    $('settings-body').classList.toggle('open');
+    $('chevron').classList.toggle('open');
+  }
+
+  /* ── Utilities ── */
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function initials(name) {
+    return name.split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0, 2) || '?';
+  }
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ── Boot ── */
+  restore();
+</script>
+</body>
+</html>

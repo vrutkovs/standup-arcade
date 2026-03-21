@@ -15,8 +15,18 @@ import (
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <google-meet-url>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "       %s -web [addr]  (default addr: localhost:8080)\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Example: %s https://meet.google.com/abc-defg-hij\n", os.Args[0])
 		os.Exit(1)
+	}
+
+	if os.Args[1] == "-web" {
+		addr := "localhost:8080"
+		if len(os.Args) >= 3 {
+			addr = os.Args[2]
+		}
+		startWebServer(addr)
+		return
 	}
 
 	meetURL := os.Args[1]
