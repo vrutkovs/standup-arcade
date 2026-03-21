@@ -1,6 +1,6 @@
 # meet-attendees
 
-A CLI tool that fetches the list of participants who actually joined a Google Meet meeting.
+A web server that fetches the list of participants who actually joined a Google Meet meeting.
 
 ## How it works
 
@@ -39,14 +39,14 @@ go build -o meet-attendees .
 ## Usage
 
 ```bash
-# Full URL
-./meet-attendees https://meet.google.com/abc-defg-hij
+# Start on default port (localhost:8080)
+./meet-attendees
 
-# Just the meeting code
-./meet-attendees abc-defg-hij
+# Start on a specific address
+./meet-attendees localhost:8081
 ```
 
-On first run, the tool opens a browser-based OAuth consent flow and caches the token at `~/.meet-attendees-token.json` for subsequent runs.
+Once running, navigate to `http://localhost:8080` in your browser. On first API request, the tool might open a browser-based OAuth consent flow and cache the token at `~/.meet-attendees-token.json` for subsequent runs.
 
 ### Environment variables
 
@@ -54,19 +54,23 @@ On first run, the tool opens a browser-based OAuth consent flow and caches the t
 |---------------------------|--------------------|------------------------------------|
 | `GOOGLE_CREDENTIALS_FILE` | `credentials.json` | Path to OAuth client secret file   |
 
-## Example output
+## API Usage
 
+The web server exposes an API to retrieve attendees:
+
+```bash
+curl "http://localhost:8080/api/attendees?meeting=abc-defg-hij"
 ```
-Meeting code: abc-defg-hij
 
-=== Session 1 (2025-03-20 10:00:00 → 2025-03-20 11:05:32) ===
-Conference Record: conferenceRecords/xyz789
+Example response:
 
-  #  NAME            EMAIL                         JOINED              LEFT                DURATION
-  -  ----            -----                         ------              ----                --------
-  1  Alice Smith     people/1234567890              2025-03-20 10:00:05  2025-03-20 11:05:32  1h5m27s
-  2  Bob Jones       people/0987654321              2025-03-20 10:02:11  2025-03-20 11:05:30  1h3m19s
-  3  Guest (anon)    —                              2025-03-20 10:15:00  2025-03-20 10:45:00  30m0s
+```json
+{
+  "attendees": [
+    "Alice Smith",
+    "Bob Jones"
+  ]
+}
 ```
 
 ## Permissions note

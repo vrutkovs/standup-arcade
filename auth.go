@@ -124,7 +124,10 @@ func tokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 		return nil, fmt.Errorf("auth callback error: %w", err)
 	}
 
-	srv.Close()
+	err := srv.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to close server: %w", err)
+	}
 
 	tok, err := config.Exchange(context.Background(), code)
 	if err != nil {
