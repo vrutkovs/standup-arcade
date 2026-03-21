@@ -135,15 +135,6 @@ func (p Participant) DisplayName() string {
 	}
 }
 
-// Email returns the user resource if signed in (which maps to a directory
-// entry), otherwise "—".
-func (p Participant) Email() string {
-	if p.SignedinUser != nil && p.SignedinUser.User != "" {
-		return p.SignedinUser.User
-	}
-	return "—"
-}
-
 type participantsResponse struct {
 	Participants  []Participant `json:"participants"`
 	NextPageToken string        `json:"nextPageToken"`
