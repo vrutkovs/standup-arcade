@@ -494,15 +494,15 @@
       <span class="panel-title">MISSION CONTROL</span>
     </div>
     <div class="panel-body">
-      <div class="input-row">
+      <div class="input-row" id="url-row">
         <input id="meeting-input" class="px-input"
                placeholder="meet.google.com/abc-def-ghi"
-               onkeydown="if(event.key==='Enter') loadAttendees()" />
-        <button class="btn btn-grey" id="load-btn" onclick="loadAttendees()">SCAN</button>
+               oninput="updateLoadBtn()"
+               onkeydown="if(event.key==='Enter') handleMainBtn()" />
+        <button class="btn btn-grey" id="load-btn" onclick="handleMainBtn()" disabled>SCAN</button>
       </div>
-      <div class="status-line" id="status">ENTER MEETING URL OR ADD PLAYERS IN OPTIONS</div>
+      <div class="status-line" id="status">ADD PLAYERS OR ENTER A MEETING URL</div>
       <div class="action-row">
-        <button class="btn btn-green"  id="start-btn" onclick="startStandup()" disabled>PRESS&nbsp;START</button>
         <button class="btn btn-yellow" id="next-btn"  onclick="nextSpeaker()"  style="display:none">NEXT&nbsp;►</button>
         <button class="btn btn-red"    id="end-btn"   onclick="endStandup()"   style="display:none">QUIT</button>
       </div>
@@ -564,7 +564,7 @@
     updateHiScore();
     renderMemberList();
     renderIdleTeam();
-    updateStartBtn();
+    updateLoadBtn();
   }
 
   function updateHiScore() {
@@ -586,24 +586,21 @@
       if (data.error) {
         setStatus('ERROR: ' + data.error.toUpperCase(), true);
       } else {
-        // Replace roster entirely with fresh attendees from this URL
         team = (data.attendees || []);
-        endSession();            // reset any active session
+        endSession();
         renderMemberList();
         renderIdleTeam();
-        updateStartBtn();
-        setStatus(
-          team.length
-            ? `${team.length} PLAYER${team.length > 1 ? 'S' : ''} LOADED`
-            : 'NO PLAYERS FOUND IN THIS MEETING',
-          !team.length
-        );
+        if (team.length) {
+          startStandup();
+        } else {
+          setStatus('NO PLAYERS FOUND IN THIS MEETING', true);
+          updateLoadBtn();
+        }
       }
     } catch(e) {
       setStatus('CONNECTION FAILED: ' + e.message.toUpperCase(), true);
+      updateLoadBtn();
     }
-
-    btn.disabled = false; btn.textContent = 'SCAN';
   }
 
   /* ── Team management ── */
@@ -616,14 +613,14 @@
     persist();
     renderMemberList();
     if (current === null) renderIdleTeam();
-    updateStartBtn();
+    updateLoadBtn();
   }
 
   function removeMember(idx) {
     team.splice(idx, 1);
     renderMemberList();
     if (current === null) renderIdleTeam();
-    updateStartBtn();
+    updateLoadBtn();
   }
 
   function renderMemberList() {
@@ -815,14 +812,33 @@
 
   /* ── UI helpers ── */
   function showSessionButtons(active) {
-    $('start-btn').style.display = active ? 'none' : '';
+    $('url-row').style.display   = active ? 'none' : '';
     $('next-btn').style.display  = active ? '' : 'none';
     $('end-btn').style.display   = active ? '' : 'none';
     $('next-btn').textContent = 'NEXT ►';
   }
 
-  function updateStartBtn() {
-    $('start-btn').disabled = team.length === 0;
+  function updateLoadBtn() {
+    const btn    = $('load-btn');
+    const hasUrl = $('meeting-input').value.trim().length > 0;
+    if (hasUrl) {
+      btn.textContent = 'START';
+      btn.className   = 'btn btn-green';
+      btn.disabled    = false;
+    } else {
+      btn.textContent = 'SCAN';
+      btn.className   = 'btn btn-grey';
+      btn.disabled    = team.length === 0;
+    }
+  }
+
+  function handleMainBtn() {
+    const url = $('meeting-input').value.trim();
+    if (url) {
+      loadAttendees();
+    } else if (team.length) {
+      startStandup();
+    }
   }
 
   function setStatus(msg, isError) {
