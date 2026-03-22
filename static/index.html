@@ -639,7 +639,7 @@
 
     clearStatus();
     const btn = $('load-btn');
-    btn.disabled = true; btn.textContent = 'SCANNING...';
+    btn.disabled = true; btn.textContent = 'THINKING...';
 
     try {
       const res  = await fetch('/api/attendees?meeting=' + encodeURIComponent(val));
