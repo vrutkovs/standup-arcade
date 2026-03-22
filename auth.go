@@ -96,22 +96,41 @@ func callbackURL() string {
 	return "http://localhost:8085/callback"
 }
 
-// tokenFromWeb runs a local callback server and opens the consent URL.
+// tokenFromWeb obtains an OAuth token via the browser consent flow.
+//
+// For local callback URLs (localhost / 127.0.0.1) it starts a temporary HTTP
+// server on the callback port to receive the code.  For remote URLs the code
+// is delivered to the /callback route on the main web server and forwarded
+// here via oauthCodeCh.
 func tokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 	config.RedirectURL = callbackURL()
 
-	// Derive the listen address from the redirect URL path/port.
-	// If the URL is non-local (e.g. a tunnel) the local server still binds on
-	// the default port so the tunnel can forward to it.
-	listenAddr := ":8085"
-	if u := os.Getenv("OAUTH_CALLBACK_URL"); u != "" {
-		// Parse host:port from the env URL when it is localhost-like.
-		parsed, err := parseListenAddr(u)
-		if err == nil {
-			listenAddr = parsed
-		}
+	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	fmt.Printf("Open this URL in your browser to authorize:\n\n  %s\n\nWaiting for authorization...\n", authURL)
+
+	code, err := receiveCode(config.RedirectURL)
+	if err != nil {
+		return nil, err
 	}
 
+	tok, err := config.Exchange(context.Background(), code)
+	if err != nil {
+		return nil, fmt.Errorf("unable to exchange authorization code: %w", err)
+	}
+	return tok, nil
+}
+
+// receiveCode waits for the OAuth authorization code.
+// For local redirect URLs it spins up a temporary HTTP server; for remote
+// URLs it reads from oauthCodeCh (populated by the main server's /callback).
+func receiveCode(redirectURL string) (string, error) {
+	listenAddr, err := parseListenAddr(redirectURL)
+	if err != nil {
+		// Non-local URL: the main server handles /callback.
+		return <-oauthCodeCh, nil
+	}
+
+	// Local URL: start a dedicated callback server.
 	codeCh := make(chan string, 1)
 	errCh := make(chan error, 1)
 
@@ -134,27 +153,18 @@ func tokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 		}
 	}()
 
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	fmt.Printf("Open this URL in your browser to authorize:\n\n  %s\n\nWaiting for authorization...\n", authURL)
-
 	var code string
 	select {
 	case code = <-codeCh:
 	case err := <-errCh:
 		srv.Close()
-		return nil, fmt.Errorf("auth callback error: %w", err)
+		return "", fmt.Errorf("auth callback error: %w", err)
 	}
 
-	err := srv.Close()
-	if err != nil {
-		return nil, fmt.Errorf("failed to close server: %w", err)
+	if err := srv.Close(); err != nil {
+		return "", fmt.Errorf("failed to close callback server: %w", err)
 	}
-
-	tok, err := config.Exchange(context.Background(), code)
-	if err != nil {
-		return nil, fmt.Errorf("unable to exchange authorization code: %w", err)
-	}
-	return tok, nil
+	return code, nil
 }
 
 // parseListenAddr extracts a ":port" listen address from a full callback URL.
