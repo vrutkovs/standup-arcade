@@ -89,19 +89,33 @@ func handleAttendees(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only consider the active (ongoing) conference record — EndTime is empty
+	// while the call is in progress. Using past records would surface stale
+	// participants from previous sessions.
+	var activeRecord *ConferenceRecord
+	for i := range records {
+		if records[i].EndTime == "" {
+			activeRecord = &records[i]
+			break
+		}
+	}
+	if activeRecord == nil {
+		json.NewEncoder(w).Encode(attendeesResponse{Error: "meeting has not started yet"})
+		return
+	}
+
 	seen := make(map[string]bool)
 	var attendees []string
-	for _, record := range records {
-		participants, err := mc.ListParticipants(ctx, record.Name)
-		if err != nil {
-			continue
-		}
-		for _, p := range participants {
-			name := p.DisplayName()
-			if name != "" && name != "(unknown)" && !seen[name] {
-				seen[name] = true
-				attendees = append(attendees, name)
-			}
+	participants, err := mc.ListParticipants(ctx, activeRecord.Name)
+	if err != nil {
+		json.NewEncoder(w).Encode(attendeesResponse{Error: "could not list participants: " + err.Error()})
+		return
+	}
+	for _, p := range participants {
+		name := p.DisplayName()
+		if name != "" && name != "(unknown)" && !seen[name] {
+			seen[name] = true
+			attendees = append(attendees, name)
 		}
 	}
 
