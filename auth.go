@@ -62,6 +62,9 @@ func getOAuthClient(ctx context.Context) (*http.Client, error) {
 }
 
 func tokenCachePath() string {
+	if p := os.Getenv("TOKEN_CACHE_FILE"); p != "" {
+		return p
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".meet-attendees-token.json")
 }
@@ -79,6 +82,9 @@ func tokenFromCache() (*oauth2.Token, error) {
 
 func saveToken(token *oauth2.Token) error {
 	path := tokenCachePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
