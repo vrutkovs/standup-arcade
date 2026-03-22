@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -86,10 +87,30 @@ func saveToken(token *oauth2.Token) error {
 	return json.NewEncoder(f).Encode(token)
 }
 
+// callbackURL returns the OAuth redirect URL, preferring the
+// OAUTH_CALLBACK_URL environment variable over the default.
+func callbackURL() string {
+	if u := os.Getenv("OAUTH_CALLBACK_URL"); u != "" {
+		return u
+	}
+	return "http://localhost:8085/callback"
+}
+
 // tokenFromWeb runs a local callback server and opens the consent URL.
 func tokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
-	// Use a local redirect for desktop apps.
-	config.RedirectURL = "http://localhost:8085/callback"
+	config.RedirectURL = callbackURL()
+
+	// Derive the listen address from the redirect URL path/port.
+	// If the URL is non-local (e.g. a tunnel) the local server still binds on
+	// the default port so the tunnel can forward to it.
+	listenAddr := ":8085"
+	if u := os.Getenv("OAUTH_CALLBACK_URL"); u != "" {
+		// Parse host:port from the env URL when it is localhost-like.
+		parsed, err := parseListenAddr(u)
+		if err == nil {
+			listenAddr = parsed
+		}
+	}
 
 	codeCh := make(chan string, 1)
 	errCh := make(chan error, 1)
@@ -106,7 +127,7 @@ func tokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 		fmt.Fprintln(w, "Authorization successful! You can close this tab.")
 	})
 
-	srv := &http.Server{Addr: ":8085", Handler: mux}
+	srv := &http.Server{Addr: listenAddr, Handler: mux}
 	go func() {
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			errCh <- err
@@ -134,4 +155,23 @@ func tokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 		return nil, fmt.Errorf("unable to exchange authorization code: %w", err)
 	}
 	return tok, nil
+}
+
+// parseListenAddr extracts a ":port" listen address from a full callback URL.
+// It only returns a result for localhost/127.0.0.1 URLs so that remote tunnel
+// URLs (e.g. ngrok) don't accidentally bind on a remote port.
+func parseListenAddr(rawURL string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	host := u.Hostname()
+	if host != "localhost" && host != "127.0.0.1" {
+		return "", fmt.Errorf("non-local callback URL %q: keeping default listen address", rawURL)
+	}
+	port := u.Port()
+	if port == "" {
+		port = "8085"
+	}
+	return ":" + port, nil
 }
