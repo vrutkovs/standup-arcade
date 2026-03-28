@@ -916,6 +916,15 @@
 
   /* ── Boot ── */
   restore();
+
+  // Pre-fill meeting URL from page query args and auto-load if present.
+  const _urlParams = new URLSearchParams(window.location.search);
+  const _meetParam = _urlParams.get('meeting');
+  if (_meetParam) {
+    $('meeting-input').value = _meetParam;
+    updateLoadBtn();
+    loadAttendees();
+  }
 </script>
 </body>
 </html>
