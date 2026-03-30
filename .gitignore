@@ -1,1 +1,41 @@
+# Binaries
 meet-attendees
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go coverage tool
+*.out
+
+# Dependency vendor directory
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Build cache
+/tmp/
+
+# OAuth token cache
+~/.meet-attendees-token.json
+token.json
+
+# Google API credentials (keep credentials.json out of VCS)
+credentials.json
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
