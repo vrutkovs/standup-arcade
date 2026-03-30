@@ -1,5 +1,6 @@
 # Binaries
 meet-attendees
+standup-arcade
 *.exe
 *.exe~
 *.dll

@@ -1,12 +1,12 @@
-# meet-attendees
+# standup-arcade
 
-A web server that fetches the list of participants who actually joined a Google Meet meeting.
+A retro arcade-themed standup timer. Fetches participants from a live Google Meet meeting and runs them through a speaking queue with a pixel-art UI.
 
 ## How it works
 
 1. Extracts the meeting code from a Google Meet URL
 2. Uses the [Google Meet REST API v2](https://developers.google.com/meet/api) to look up conference records for that meeting space
-3. Lists all participants with their names, join/leave times, and session duration
+3. Shuffles the participant list and runs a standup queue — each person speaks once, with a "Skip for now" option to defer someone to the end
 
 ## Prerequisites
 
@@ -33,17 +33,17 @@ A web server that fetches the list of participants who actually joined a Google 
 ## Install
 
 ```bash
-go build -o meet-attendees .
+go build -o standup-arcade .
 ```
 
 ## Usage
 
 ```bash
 # Start on default port (localhost:8080)
-./meet-attendees
+./standup-arcade
 
 # Start on a specific address
-./meet-attendees localhost:8081
+./standup-arcade localhost:8081
 ```
 
 Once running, navigate to `http://localhost:8080` in your browser. On first API request, the tool might open a browser-based OAuth consent flow and cache the token at `~/.meet-attendees-token.json` for subsequent runs.
@@ -54,15 +54,11 @@ Once running, navigate to `http://localhost:8080` in your browser. On first API 
 |---------------------------|--------------------|------------------------------------|
 | `GOOGLE_CREDENTIALS_FILE` | `credentials.json` | Path to OAuth client secret file   |
 
-## API Usage
-
-The web server exposes an API to retrieve attendees:
+## API
 
 ```bash
 curl "http://localhost:8080/api/attendees?meeting=abc-defg-hij"
 ```
-
-Example response:
 
 ```json
 {
