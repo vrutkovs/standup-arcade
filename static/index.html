@@ -17,6 +17,8 @@
       --red:        #a84040;
       --red-dark:   #5a2828;
       --cyan:       #4a8898;
+      --blue:       #4a70b8;
+      --blue-dark:  #2a4070;
       --magenta:    #886688;
       --white:      #c8d4c8;
       --grey:       #445044;
@@ -240,6 +242,13 @@
       box-shadow: 0 4px 0 var(--red-dark);
     }
     .btn-red:not(:disabled):hover { background: #ff4466; }
+
+    .btn-blue {
+      background: var(--blue);
+      color: #fff;
+      box-shadow: 0 4px 0 var(--blue-dark);
+    }
+    .btn-blue:not(:disabled):hover { background: #6a90d8; }
 
     /* ── Status line ── */
 
@@ -514,6 +523,7 @@
       <div id="speaker-display" style="display:none"></div>
       <div class="action-row">
         <button class="btn btn-yellow" id="next-btn"  onclick="nextSpeaker()"  style="display:none">NEXT&nbsp;►</button>
+        <button class="btn btn-blue"   id="skip-btn"  onclick="skipSpeaker()"  style="display:none">SKIP FOR NOW</button>
         <button class="btn btn-red"    id="end-btn"   onclick="endStandup()"   style="display:none">QUIT</button>
       </div>
     </div>
@@ -612,6 +622,7 @@
   let team      = [];
   let remaining = [];
   let done      = [];
+  let justSkipped = false;
   let current   = null;
   let sessionCount = 0;
 
@@ -687,26 +698,31 @@
   /* ── Standup session ── */
   function startStandup() {
     if (!team.length) return;
-    done      = [];
-    remaining = [...team];
-    current   = pickRandom();
+    done        = [];
+    justSkipped = false;
+    remaining   = shuffle([...team]);
+    current     = remaining.shift();
     showSessionButtons(true);
     renderSession();
     setProgressBar();
   }
 
   function nextSpeaker() {
+    justSkipped = false;
     done.push(current);
     if (!remaining.length) { finishStandup(); return; }
-    current = pickRandom();
+    current = remaining.shift();
     renderSession();
     setProgressBar();
     $('next-btn').textContent = remaining.length === 0 ? 'FINISH' : 'NEXT ►';
   }
 
-  function pickRandom() {
-    const i = Math.floor(Math.random() * remaining.length);
-    return remaining.splice(i, 1)[0];
+  function skipSpeaker() {
+    justSkipped = true;
+    remaining.push(current);
+    current = remaining.shift();
+    renderSession();
+    setProgressBar();
   }
 
   function finishStandup() {
@@ -726,7 +742,7 @@
   }
 
   function endSession() {
-    remaining = []; done = []; current = null;
+    remaining = []; done = []; justSkipped = false; current = null;
     showSessionButtons(false);
     hideProgressBar();
     const sp = $('speaker-display');
@@ -777,6 +793,7 @@
   function renderSession() {
     const badge = $('team-badge');
     badge.textContent = (done.length + 1) + '/' + team.length;
+    $('skip-btn').disabled = remaining.length === 0 || justSkipped;
 
     // Current speaker — above buttons in mission control
     const block = cloneTpl('speaker');
@@ -853,6 +870,7 @@
   function showSessionButtons(active) {
     $('url-row').style.display   = active ? 'none' : '';
     $('next-btn').style.display  = active ? '' : 'none';
+    $('skip-btn').style.display  = active ? '' : 'none';
     $('end-btn').style.display   = active ? '' : 'none';
     $('next-btn').textContent = 'NEXT ►';
   }
