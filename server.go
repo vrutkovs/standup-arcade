@@ -62,16 +62,22 @@ func handleAttendees(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logErr := func(format string, args ...any) {
+		msg := fmt.Sprintf(format, args...)
+		log.Printf("meeting=%s error: %s", meeting, msg)
+		json.NewEncoder(w).Encode(attendeesResponse{Error: msg})
+	}
+
 	code, err := extractMeetingCode(meeting)
 	if err != nil {
-		json.NewEncoder(w).Encode(attendeesResponse{Error: err.Error()})
+		logErr("%v", err)
 		return
 	}
 
 	ctx := context.Background()
 	client, err := getOAuthClient(ctx)
 	if err != nil {
-		json.NewEncoder(w).Encode(attendeesResponse{Error: "auth failed: " + err.Error()})
+		logErr("auth failed: %v", err)
 		return
 	}
 
@@ -79,13 +85,13 @@ func handleAttendees(w http.ResponseWriter, r *http.Request) {
 
 	space, err := mc.GetSpace(ctx, code)
 	if err != nil {
-		json.NewEncoder(w).Encode(attendeesResponse{Error: "could not resolve meeting: " + err.Error()})
+		logErr("could not resolve meeting: %v", err)
 		return
 	}
 
 	records, err := mc.ListConferenceRecords(ctx, space.Name)
 	if err != nil {
-		json.NewEncoder(w).Encode(attendeesResponse{Error: "could not list records: " + err.Error()})
+		logErr("could not list records: %v", err)
 		return
 	}
 
@@ -100,7 +106,7 @@ func handleAttendees(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if activeRecord == nil {
-		json.NewEncoder(w).Encode(attendeesResponse{Error: "meeting has not started yet"})
+		logErr("meeting has not started yet")
 		return
 	}
 
@@ -108,7 +114,7 @@ func handleAttendees(w http.ResponseWriter, r *http.Request) {
 	var attendees []string
 	participants, err := mc.ListParticipants(ctx, activeRecord.Name)
 	if err != nil {
-		json.NewEncoder(w).Encode(attendeesResponse{Error: "could not list participants: " + err.Error()})
+		logErr("could not list participants: %v", err)
 		return
 	}
 	for _, p := range participants {
@@ -119,5 +125,6 @@ func handleAttendees(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	log.Printf("meeting=%s attendees=%d %v", meeting, len(attendees), attendees)
 	json.NewEncoder(w).Encode(attendeesResponse{Attendees: attendees})
 }
