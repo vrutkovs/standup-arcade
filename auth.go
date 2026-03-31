@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -58,7 +59,34 @@ func getOAuthClient(ctx context.Context) (*http.Client, error) {
 		}
 	}
 
-	return config.Client(ctx, tok), nil
+	ts := &persistingTokenSource{
+		base: config.TokenSource(ctx, tok),
+	}
+	return oauth2.NewClient(ctx, ts), nil
+}
+
+// persistingTokenSource wraps an oauth2.TokenSource and writes the token back
+// to disk whenever a new one is issued, so restarts don't trigger re-auth.
+type persistingTokenSource struct {
+	mu   sync.Mutex
+	base oauth2.TokenSource
+	last string // last access token seen
+}
+
+func (p *persistingTokenSource) Token() (*oauth2.Token, error) {
+	tok, err := p.base.Token()
+	if err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if tok.AccessToken != p.last {
+		p.last = tok.AccessToken
+		if err := saveToken(tok); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not persist refreshed token: %v\n", err)
+		}
+	}
+	return tok, nil
 }
 
 func tokenCachePath() string {
